@@ -323,7 +323,7 @@ contract Baal is Executor, Initializable {
         bytes calldata proposalData,
         uint256 expiration,
         string calldata details
-    ) external nonReentrant returns (uint256 proposal) {
+    ) external payable nonReentrant returns (uint256 proposal) {
         require(
             minVotingPeriod <= votingPeriod && votingPeriod <= maxVotingPeriod,
             "!votingPeriod"
