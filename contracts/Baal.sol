@@ -93,6 +93,8 @@ contract Baal is Executor, Initializable {
     uint8 public constant decimals = 18; /*unit scaling factor in erc20 `shares` accounting - '18' is default to match ETH & common erc20s*/
     uint16 constant MAX_GUILD_TOKEN_COUNT = 400; /*maximum number of whitelistable tokens subject to {ragequit}*/
 
+    uint256 constant PROPOSAL_DEPOSIT = 0.25 ether;
+
     uint96 public totalLoot; /*counter for total `loot` economic weight held by `members`*/
     uint96 public totalSupply; /*counter for total `members` voting `shares` with erc20 accounting*/
 
@@ -326,6 +328,8 @@ contract Baal is Executor, Initializable {
             minVotingPeriod <= votingPeriod && votingPeriod <= maxVotingPeriod,
             "!votingPeriod"
         ); /*check voting period is within Baal bounds*/
+        
+        require(msg.value >= PROPOSAL_DEPOSIT, "!minDeposit");
 
         bool selfSponsor; /*plant sponsor flag*/
         if (balanceOf[msg.sender] != 0) selfSponsor = true; /*if a member, self-sponsor*/
