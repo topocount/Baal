@@ -110,10 +110,6 @@ describe("Baal contract", function () {
     const setPeriods = await baal.interface.encodeFunctionData("setPeriods", [
       periods,
     ]);
-    const setGuildTokens = await baal.interface.encodeFunctionData(
-      "setGuildTokens",
-      [[weth.address]]
-    );
     const setShaman = await baal.interface.encodeFunctionData("setShamans", [
       [shaman.address],
       true,
@@ -130,16 +126,15 @@ describe("Baal contract", function () {
 
     const initalizationActions = encodeMultiAction(
       multisend,
-      [setPeriods, setGuildTokens, setShaman, mintShares, mintLoot],
-      [baal.address, baal.address, baal.address, baal.address, baal.address],
+      [setPeriods, setShaman, mintShares, mintLoot],
+      [baal.address, baal.address, baal.address, baal.address],
       [
         BigNumber.from(0),
         BigNumber.from(0),
         BigNumber.from(0),
         BigNumber.from(0),
-        BigNumber.from(0),
       ],
-      [0, 0, 0, 0, 0]
+      [0, 0, 0, 0]
     );
 
     const encodedInitParams = abiCoder.encode(
@@ -212,9 +207,6 @@ describe("Baal contract", function () {
 
       const shamans = await baal.shamans(shaman.address);
       expect(shamans).to.be.true;
-
-      const guildTokens = await baal.getGuildTokens();
-      expect(guildTokens[0]).to.equal(weth.address);
 
       const summonerData = await baal.members(summoner.address);
       expect(summonerData.loot).to.equal(500);
@@ -422,27 +414,50 @@ describe("Baal contract", function () {
     });
 
     it("happy case - full ragequit", async function () {
+      // setup
+      const depositAmount = 2000000;
+      await weth.transfer(baal.address, depositAmount);
+      let tokenBefore = await weth.balanceOf(summoner.address);
       const lootBefore = (await baal.members(summoner.address)).loot;
-      await baal.ragequit(summoner.address, loot, shares);
+
+      // test
+      await baal.ragequit(summoner.address, loot, shares, [weth.address]);
+
+      // verify
       const lootAfter = (await baal.members(summoner.address)).loot;
       expect(lootAfter).to.equal(lootBefore.sub(loot));
+      let tokenAfter = await weth.balanceOf(summoner.address);
+      expect(tokenAfter).to.equal(tokenBefore.add(depositAmount));
     });
 
     it("happy case - partial ragequit", async function () {
+      const depositAmount = 2000000;
+      await weth.transfer(baal.address, depositAmount);
+      let tokenBefore = await weth.balanceOf(summoner.address);
       const lootBefore = (await baal.members(summoner.address)).loot;
       const lootToBurn = 200;
       const sharesToBurn = 70;
-      await baal.ragequit(summoner.address, lootToBurn, sharesToBurn);
+      await baal.ragequit(summoner.address, lootToBurn, sharesToBurn, [
+        weth.address,
+      ]);
       const lootAfter = (await baal.members(summoner.address)).loot;
       expect(lootAfter).to.equal(lootBefore.sub(lootToBurn));
+      let tokenAfter = await weth.balanceOf(summoner.address);
+      expect(tokenAfter).to.equal(
+        tokenBefore.add(
+          BigNumber.from(depositAmount)
+            .mul(lootToBurn + sharesToBurn)
+            .div(loot + shares)
+        )
+      );
     });
 
     it("require fail - proposal voting has not ended", async function () {
       const lootBefore = (await baal.members(summoner.address)).loot;
       await baal.submitVote(1, yes);
-      expect(baal.ragequit(summoner.address, loot, shares)).to.be.revertedWith(
-        "processed"
-      );
+      expect(
+        baal.ragequit(summoner.address, loot, shares, [weth.address])
+      ).to.be.revertedWith("processed");
     });
   });
 

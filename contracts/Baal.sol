@@ -131,8 +131,6 @@ contract Baal is Executor, Initializable {
     bytes32 constant VOTE_TYPEHASH =
         keccak256("Vote(uint proposalId,bool support)"); /*EIP-712 typehash for Baal proposal vote*/
 
-    address[] guildTokens; /*array list of erc20 tokens approved on summoning or by 'whitelist'[3] `proposals` for {ragequit} claims*/
-
     address multisendLibrary; /*address of multisend library*/
 
     mapping(address => mapping(address => uint256)) public allowance; /*maps approved pulls of `shares` with erc20 accounting*/
@@ -588,25 +586,6 @@ contract Baal is Executor, Initializable {
         }
     }
 
-    /// @notice Baal-only function to whitelist guildToken.
-    function setGuildTokens(address[] calldata _tokens) external baalOnly {
-        for (uint256 i; i < _tokens.length; i++) {
-            if (guildTokens.length != MAX_GUILD_TOKEN_COUNT)
-                guildTokens.push(_tokens[i]); /*push account to `guildTokens` array if within 'MAX'*/
-        }
-    }
-
-    /// @notice Baal-only function to remove guildToken
-    function unsetGuildTokens(uint256[] calldata _tokenIndexes)
-        external
-        baalOnly
-    {
-        for (uint256 i; i < _tokenIndexes.length; i++) {
-            guildTokens[_tokenIndexes[i]] = guildTokens[guildTokens.length - 1]; /*swap-to-delete index with last value*/
-            guildTokens.pop(); /*pop account from `guildTokens` array*/
-        }
-    }
-
     /*******************
     GUILD MGMT FUNCTIONS
     *******************/
@@ -832,15 +811,16 @@ contract Baal is Executor, Initializable {
     function ragequit(
         address to,
         uint96 lootToBurn,
-        uint96 sharesToBurn
+        uint96 sharesToBurn,
+        address[] calldata tokens
     ) external nonReentrant {
         require(
             proposals[members[msg.sender].highestIndexYesVote].votingEnds == 0,
             "processed"
         ); /*check highest index proposal member approved has processed*/
 
-        for (uint256 i; i < guildTokens.length; i++) {
-            (, bytes memory balanceData) = guildTokens[i].staticcall(
+        for (uint256 i; i < tokens.length; i++) {
+            (, bytes memory balanceData) = tokens[i].staticcall(
                 abi.encodeWithSelector(0x70a08231, address(this))
             ); /*get Baal token balances - 'balanceOf(address)'*/
             uint256 balance = abi.decode(balanceData, (uint256)); /*decode Baal token balances for calculation*/
@@ -850,7 +830,7 @@ contract Baal is Executor, Initializable {
 
             if (amountToRagequit != 0) {
                 /*gas optimization to allow higher maximum token limit*/
-                _safeTransfer(guildTokens[i], to, amountToRagequit); /*execute 'safe' token transfer*/
+                _safeTransfer(tokens[i], to, amountToRagequit); /*execute 'safe' token transfer*/
             }
         }
 
@@ -917,12 +897,6 @@ contract Baal is Executor, Initializable {
             }
             votes = checkpoints[account][lower].votes;
         }
-    }
-
-    /// @notice Returns array list of approved `guildTokens` in Baal for {ragequit}.
-    /// @return tokens ERC-20s approved for {ragequit}.
-    function getGuildTokens() external view returns (address[] memory tokens) {
-        tokens = guildTokens;
     }
 
     /// @notice Returns the `fee` to be charged for a flash loan.
